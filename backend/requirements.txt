@@ -19,26 +19,19 @@ requests==2.32.5
 
 # ── Document Processing ────────────────────────────────────
 pandas==3.0.1
-pillow==12.1.1
 pdfplumber==0.11.9
 python-docx==1.2.0
-flask==3.1.0
-spacy==3.7.4
 numpy<2.0.0
 
 # ── Google APIs ────────────────────────────────────────────
 google-api-python-client==2.122.0
-google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.0
 
 # ── AI / ML ────────────────────────────────────────────────
 sentence-transformers==5.2.3
-chromadb==1.5.1
 mistralai==1.12.4
 
 # ── LangChain ─────────────────────────────────────────────
 langchain==1.2.10
-langchain-community==0.4.1
 langchain-mistralai
 langchain-huggingface
-langchain-text-splitters
