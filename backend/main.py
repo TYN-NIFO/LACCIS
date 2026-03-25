@@ -92,14 +92,23 @@ db_pool = None
 if DATABASE_URL:
     try:
         print(f"[DATABASE] Attempting to initialize PostgreSQL Connection Pool (schema: {DB_SCHEMA})...")
-        db_pool = psycopg2.pool.ThreadedConnectionPool(
-            1, 20, DATABASE_URL, options=f"-c search_path={DB_SCHEMA},public"
-        )
+        db_pool = psycopg2.pool.ThreadedConnectionPool(1, 20, DATABASE_URL)
         print("[DATABASE] PostgreSQL Connection Pool initialized successfully")
     except Exception as e:
         print(f"[ERROR] Database pool initialization failed: {e}")
 else:
     print("[DATABASE] DATABASE_URL missing")
+
+# Wrap getconn to set search_path on every connection
+if db_pool:
+    _original_getconn = db_pool.getconn
+    def _getconn_with_schema(*args, **kwargs):
+        conn = _original_getconn(*args, **kwargs)
+        with conn.cursor() as cur:
+            cur.execute(f"SET search_path TO {DB_SCHEMA}, public")
+        conn.commit()
+        return conn
+    db_pool.getconn = _getconn_with_schema
 
 print("[STARTUP] Initializing S3 client...")
 s3_client = boto3.client(
