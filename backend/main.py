@@ -46,9 +46,10 @@ async def log_requests(request, call_next):
     return response
 
 # CORS middleware
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in CORS_ORIGINS],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,7 +57,9 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
-SECRET_KEY = "your-secret-key-change-in-production"
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 ALGORITHM = "HS256"
 
 # Data storage
@@ -84,12 +87,13 @@ BUCKET_NAME = os.getenv("BUCKET_NAME", "").strip(' "')
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Initialize PostgreSQL Connection Pool
+DB_SCHEMA = os.getenv("DB_SCHEMA", "public")
 db_pool = None
 if DATABASE_URL:
     try:
-        print("[DATABASE] Attempting to initialize PostgreSQL Connection Pool...")
+        print(f"[DATABASE] Attempting to initialize PostgreSQL Connection Pool (schema: {DB_SCHEMA})...")
         db_pool = psycopg2.pool.ThreadedConnectionPool(
-            1, 20, DATABASE_URL
+            1, 20, DATABASE_URL, options=f"-c search_path={DB_SCHEMA},public"
         )
         print("[DATABASE] PostgreSQL Connection Pool initialized successfully")
     except Exception as e:
@@ -112,12 +116,9 @@ s3_client = boto3.client(
 print("[STARTUP] S3 client initialized.")
 
 # Debug: Print if credentials are loaded
-print(f"[AWS/EMAIL] EMAILJS_SERVICE_ID loaded: {bool(EMAILJS_SERVICE_ID)}")
-print(f"[AWS/EMAIL] EMAILJS_TEMPLATE_ID loaded: {bool(EMAILJS_TEMPLATE_ID)}")
-print(f"[AWS/EMAIL] EMAILJS_PUBLIC_KEY loaded: {bool(EMAILJS_PUBLIC_KEY)}")
-print(f"[AWS/EMAIL] AWS_ACCESS_KEY loaded: {bool(AWS_ACCESS_KEY)} | value starts with: {AWS_ACCESS_KEY[:4] if AWS_ACCESS_KEY else 'MISSING'}")
-print(f"[AWS/EMAIL] AWS_REGION: {AWS_REGION}")
-print(f"[AWS/EMAIL] BUCKET_NAME: {BUCKET_NAME}")
+print(f"[CONFIG] EMAILJS loaded: {bool(EMAILJS_SERVICE_ID)}")
+print(f"[CONFIG] AWS loaded: {bool(AWS_ACCESS_KEY)}")
+print(f"[CONFIG] Region: {AWS_REGION}")
 
 # Models
 class LoginRequest(BaseModel):
@@ -307,8 +308,14 @@ def login(request: LoginRequest):
         
         user_id, email, name, role, password_hash, nda_accepted = user_row
         
-        # Direct password comparison
-        if password_hash == request.password:
+        # Password comparison (supports both bcrypt and plaintext for migration)
+        import bcrypt
+        try:
+            password_match = bcrypt.checkpw(request.password.encode('utf-8'), password_hash.encode('utf-8'))
+        except (ValueError, AttributeError):
+            # Fallback for legacy plaintext passwords
+            password_match = (password_hash == request.password)
+        if password_match:
             token = create_token(user_id, email, role)
             record_activity(user_id, user_id, "Logged in")
             return {
@@ -3274,4 +3281,5 @@ def document_chat(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, access_log=True, log_level="info")
+    is_dev = os.getenv("ENVIRONMENT", "production") != "production"
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=is_dev, access_log=True, log_level="info")
