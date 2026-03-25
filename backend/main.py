@@ -111,18 +111,22 @@ if db_pool:
     db_pool.getconn = _getconn_with_schema
 
 print("[STARTUP] Initializing S3 client...")
-s3_client = boto3.client(
-    's3',
-    aws_access_key_id=AWS_ACCESS_KEY,
-    aws_secret_access_key=AWS_SECRET_KEY,
-    region_name=AWS_REGION,
-    config=Config(
-        connect_timeout=10,   # 10 sec to establish connection
-        read_timeout=30,      # 30 sec to read response
-        retries={'max_attempts': 2}
+s3_client = None
+if AWS_ACCESS_KEY and AWS_SECRET_KEY and AWS_REGION:
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY,
+        aws_secret_access_key=AWS_SECRET_KEY,
+        region_name=AWS_REGION,
+        config=Config(
+            connect_timeout=10,
+            read_timeout=30,
+            retries={'max_attempts': 2}
+        )
     )
-)
-print("[STARTUP] S3 client initialized.")
+    print("[STARTUP] S3 client initialized.")
+else:
+    print("[STARTUP] S3 client skipped (AWS credentials not configured)")
 
 # Debug: Print if credentials are loaded
 print(f"[CONFIG] EMAILJS loaded: {bool(EMAILJS_SERVICE_ID)}")
