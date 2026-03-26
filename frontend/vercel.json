@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/tools/laccis/(.*)", "destination": "/index.html" },
+    { "source": "/api/:path*", "destination": "http://3.111.213.97:8001/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
