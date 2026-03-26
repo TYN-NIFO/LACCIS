@@ -16,8 +16,13 @@ logger = logging.getLogger(__name__)
 
 def _call_bedrock(prompt: str) -> str:
     """Call Mistral via AWS Bedrock."""
-    import boto3
-    client = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+    import boto3, os
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name=AWS_REGION,
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
+    )
     body = json.dumps({
         "prompt": f"<s>[INST] {prompt} [/INST]",
         "max_tokens": 1024,

@@ -108,11 +108,19 @@ def _get_llm():
     """Get LLM instance — Bedrock primary, Mistral fallback."""
     if LLM_PROVIDER == "bedrock":
         try:
+            import os, boto3
             from langchain_aws import ChatBedrockConverse
+            bedrock_client = boto3.client(
+                "bedrock-runtime",
+                region_name=AWS_REGION,
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
+            )
             return ChatBedrockConverse(
                 model=BEDROCK_MODEL,
                 region_name=AWS_REGION,
-                temperature=MISTRAL_TEMPERATURE
+                temperature=MISTRAL_TEMPERATURE,
+                client=bedrock_client
             )
         except Exception as e:
             logger.warning(f"Bedrock LLM init failed, falling back to Mistral: {e}")
