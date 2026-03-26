@@ -1,13 +1,15 @@
 import json
-import langchain  # Compatibility patch: langchain 1.x removed these module-level attributes
+import langchain  # Compatibility patch
 if not hasattr(langchain, 'verbose'):   langchain.verbose = False
 if not hasattr(langchain, 'debug'):     langchain.debug = False
 if not hasattr(langchain, 'llm_cache'): langchain.llm_cache = None
 
-from langchain_mistralai import ChatMistralAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import tool
-from vector_pipeline.config.settings import MISTRAL_API_KEY, MISTRAL_MODEL, MISTRAL_TEMPERATURE
+from vector_pipeline.config.settings import (
+    LLM_PROVIDER, MISTRAL_API_KEY, MISTRAL_MODEL, MISTRAL_TEMPERATURE,
+    AWS_REGION, BEDROCK_MODEL
+)
 from vector_pipeline.embeddings.embed_store import get_embedding_model
 from vector_pipeline.retrieval.query import query_vectorstore
 
@@ -16,21 +18,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Basic in-memory conversational storage for demo purposes
-# In production, this should ideally use a proper DB-backed memory per session.
+# Basic in-memory conversational storage
 session_memory = {}
 
 @tool
 def search_standard_templates(query: str, clause_type: str = None) -> str:
-    """Searches the standard legal templates (ChromaDB) for similar clauses. 
-    Use this to see what 'Standard' language looks like for a specific topic.
-    If searching for a specific clause type, provide it."""
+    """Searches the standard legal templates for similar clauses."""
     try:
         model = get_embedding_model()
         results = query_vectorstore(query, model, clause_type=clause_type, top_k=3)
         if not results:
             return "No matching standard templates found."
-        
         response = ""
         for doc, score in results:
             doc_type = doc.metadata.get("document_type", "Template")
@@ -42,27 +40,24 @@ def search_standard_templates(query: str, clause_type: str = None) -> str:
 
 @tool
 def get_client_clauses(document_id: str, clause_type: str = None) -> str:
-    """Fetches the actual clauses uploaded by the client from the PostgreSQL database.
-    Use this to read exactly what the client's contract says.
-    Pass 'clause_type' to filter (e.g., 'Indemnification'), or leave None for all clauses."""
+    """Fetches the actual clauses uploaded by the client from PostgreSQL."""
     from vector_pipeline.config.settings import DATABASE_URL
     try:
         conn = psycopg2.connect(DATABASE_URL)
         with conn.cursor() as cur:
             if clause_type:
                 cur.execute(
-                    "SELECT clause, content FROM clauses WHERE document_id = %s AND clause ILIKE %s LIMIT 15", 
+                    "SELECT clause, content FROM clauses WHERE document_id = %s AND clause ILIKE %s LIMIT 15",
                     (document_id, f"%{clause_type}%")
                 )
             else:
                 cur.execute(
-                    "SELECT clause, content FROM clauses WHERE document_id = %s LIMIT 15", 
+                    "SELECT clause, content FROM clauses WHERE document_id = %s LIMIT 15",
                     (document_id,)
                 )
             rows = cur.fetchall()
             if not rows:
                 return "No clauses found for this document matching your criteria."
-                
             response = ""
             for row in rows:
                 response += f"[{row[0]}]: {row[1][:500]}...\n\n"
@@ -75,7 +70,7 @@ def get_client_clauses(document_id: str, clause_type: str = None) -> str:
 
 @tool
 def get_risk_analysis(document_id: str) -> str:
-    """Fetches the overall risk tagging and analysis for the entire document, summarizing high, medium, and low risk clauses."""
+    """Fetches the overall risk tagging and analysis for the document."""
     from vector_pipeline.config.settings import DATABASE_URL
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -84,14 +79,12 @@ def get_risk_analysis(document_id: str) -> str:
             row = cur.fetchone()
             if not row:
                 return "No risk analysis has been generated for this document yet."
-            
             review_data = row[0]
             if not isinstance(review_data, list):
                 if isinstance(review_data, str):
                     review_data = json.loads(review_data)
                 else:
                     return "Risk data is malformed."
-            
             high_risk = []
             medium_risk = []
             for clause in review_data:
@@ -100,7 +93,6 @@ def get_risk_analysis(document_id: str) -> str:
                     high_risk.append(f"[{clause.get('clause_type', 'Unknown')}]: {clause.get('content', '')[:200]}...")
                 elif risk == "Medium":
                     medium_risk.append(f"[{clause.get('clause_type', 'Unknown')}]: {clause.get('content', '')[:200]}...")
-            
             response = f"Document Risk Summary:\nTotal Clauses Analyzed: {len(review_data)}\n"
             response += f"High Risk Clauses ({len(high_risk)}):\n" + "\n".join(high_risk) + "\n\n"
             response += f"Medium Risk Clauses ({len(medium_risk)}):\n" + "\n".join(medium_risk)
@@ -111,25 +103,39 @@ def get_risk_analysis(document_id: str) -> str:
         if 'conn' in locals():
             conn.close()
 
-def get_agent_executor():
-    """Returns a Mistral agent equipped with the tools."""
-    llm = ChatMistralAI(
+
+def _get_llm():
+    """Get LLM instance — Bedrock primary, Mistral fallback."""
+    if LLM_PROVIDER == "bedrock":
+        try:
+            from langchain_aws import ChatBedrockConverse
+            return ChatBedrockConverse(
+                model=BEDROCK_MODEL,
+                region_name=AWS_REGION,
+                temperature=MISTRAL_TEMPERATURE
+            )
+        except Exception as e:
+            logger.warning(f"Bedrock LLM init failed, falling back to Mistral: {e}")
+
+    # Fallback to Mistral
+    from langchain_mistralai import ChatMistralAI
+    return ChatMistralAI(
         model=MISTRAL_MODEL,
         mistral_api_key=MISTRAL_API_KEY,
         temperature=MISTRAL_TEMPERATURE
     )
-    # Bind the tools to the LLM
+
+
+def get_agent_executor():
+    """Returns an LLM equipped with the tools."""
+    llm = _get_llm()
     llm_with_tools = llm.bind_tools([search_standard_templates, get_client_clauses, get_risk_analysis])
     return llm_with_tools
 
 def chat_with_document(document_id: str, user_message: str, session_id: str = "default_session") -> str:
-    """
-    Main entry point for chatting with a document.
-    Maintains a simple message history and triggers tools if needed.
-    """
+    """Main entry point for chatting with a document."""
     llm = get_agent_executor()
-    
-    # Initialize session history if it doesn't exist
+
     if session_id not in session_memory:
         system_instruction = f"""You are an elite legal AI assistant embedded in the LACCIS contract review platform.
 You are chatting with a legal professional who is reviewing a single document (ID: {document_id}).
@@ -138,23 +144,17 @@ Always give direct, strictly factual answers. If asked about what the contract s
 If asked about document risks or high-risk clauses, use the 'get_risk_analysis' tool.
 Do NOT guess what the contract says."""
         session_memory[session_id] = [SystemMessage(content=system_instruction)]
-        
-    # Append user message
+
     session_memory[session_id].append(HumanMessage(content=user_message))
-    
-    # Run LLM (it might decide to use a tool)
     response = llm.invoke(session_memory[session_id])
     session_memory[session_id].append(response)
-    
-    # Check if a tool was called
+
     if response.tool_calls:
         for tool_call in response.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
-            
             logger.info(f"Agent invoked tool: {tool_name} with args {tool_args}")
-            
-            # Execute the correct tool
+
             if tool_name == "get_client_clauses":
                 tool_args["document_id"] = document_id
                 tool_result = get_client_clauses.invoke(tool_args)
@@ -165,15 +165,12 @@ Do NOT guess what the contract says."""
                 tool_result = get_risk_analysis.invoke(tool_args)
             else:
                 tool_result = f"Error: Tool {tool_name} not found."
-                
-            # Feed the tool's result back into the memory
+
             from langchain_core.messages import ToolMessage
             session_memory[session_id].append(ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"]))
-            
-        # Call the LLM one final time to synthesize the final answer
+
         final_response = llm.invoke(session_memory[session_id])
         session_memory[session_id].append(final_response)
         return final_response.content
     else:
-        # It just answered directly
         return response.content

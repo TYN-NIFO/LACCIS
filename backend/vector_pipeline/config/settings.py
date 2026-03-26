@@ -8,7 +8,14 @@ load_dotenv(dotenv_path=env_path)
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Mistral
+# LLM Provider: "bedrock" or "mistral"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock")
+
+# AWS Bedrock
+AWS_REGION = os.getenv("AWS_REGION", os.getenv("REGION", "ap-south-1"))
+BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "mistral.mistral-large-2402-v1:0")
+
+# Mistral (fallback)
 MISTRAL_API_KEY = os.getenv("MISTRAL_API")
 MISTRAL_MODEL = "mistral-large-latest"
 MISTRAL_TEMPERATURE = 0.2
@@ -18,12 +25,7 @@ EMBEDDING_MODEL = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
 EMBEDDING_DEVICE = "cpu"
 EMBEDDING_NORMALIZE = True
 
-# ChromaDB (REPLACED BY SUPABASE PGVECTOR)
-# CHROMA_PERSIST_DIR = os.path.join(backend_dir, "data", "chroma_legal_db")
-# CHROMA_COLLECTION = "legal_clauses"
-
 # Pipeline
 TOP_K = 5
 SBERT_HIGH_RISK_THRESHOLD = 0.80
 SBERT_MEDIUM_RISK_THRESHOLD = 0.90
-# >= 0.90 is low risk
