@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/tools/laccis/(.*)", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
