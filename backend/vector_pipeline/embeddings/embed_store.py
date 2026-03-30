@@ -1,13 +1,12 @@
-import psycopg2
 import pandas as pd
 from langchain_huggingface import HuggingFaceEmbeddings
 from pgvector.psycopg2 import register_vector
 
 from vector_pipeline.config.settings import (
-    DATABASE_URL,
     EMBEDDING_MODEL,
     EMBEDDING_DEVICE,
-    EMBEDDING_NORMALIZE
+    EMBEDDING_NORMALIZE,
+    get_db_connection,
 )
 
 import logging
@@ -33,7 +32,7 @@ def get_embedding_model():
 def fetch_legal_clauses() -> pd.DataFrame:
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_db_connection()
         df = pd.read_sql("""
             SELECT clause_id, clause, content, content_id, source,
                    page_number, document, document_id, created_at
@@ -98,7 +97,7 @@ def run_embed_pipeline():
 
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_db_connection()
         register_vector(conn)
         
         with conn.cursor() as cur:

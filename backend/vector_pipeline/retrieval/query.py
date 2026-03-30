@@ -1,6 +1,5 @@
-import psycopg2
 from pgvector.psycopg2 import register_vector
-from vector_pipeline.config.settings import DATABASE_URL, TOP_K
+from vector_pipeline.config.settings import TOP_K, get_db_connection
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ def search_similar_clauses(query_embedding: list, top_k: int = TOP_K, clause_typ
     """
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_db_connection()
         register_vector(conn)
         
         candidates = _CLAUSE_ALIASES.get(clause_type, [clause_type]) if clause_type and clause_type not in _SKIP_MATCH_TYPES else []

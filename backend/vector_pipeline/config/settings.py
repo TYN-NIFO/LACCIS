@@ -7,6 +7,7 @@ load_dotenv(dotenv_path=env_path)
 
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL")
+DB_SCHEMA = os.getenv("DB_SCHEMA", "laccis")
 
 # LLM Provider: "bedrock" or "mistral"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock")
@@ -29,3 +30,13 @@ EMBEDDING_NORMALIZE = True
 TOP_K = 5
 SBERT_HIGH_RISK_THRESHOLD = 0.80
 SBERT_MEDIUM_RISK_THRESHOLD = 0.90
+
+
+def get_db_connection():
+    import psycopg2
+
+    conn = psycopg2.connect(DATABASE_URL)
+    with conn.cursor() as cur:
+        cur.execute(f'SET search_path TO "{DB_SCHEMA}"')
+    conn.commit()
+    return conn
