@@ -41,7 +41,7 @@ function App() {
   };
 
   return (
-    <Router>
+    <Router basename="/legal-analyzer">
       <div className="app">
         <div className="bg-animation"></div>
         <Routes>

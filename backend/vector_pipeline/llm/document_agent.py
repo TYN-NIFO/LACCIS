@@ -140,6 +140,35 @@ def get_agent_executor():
     llm_with_tools = llm.bind_tools([search_standard_templates, get_client_clauses, get_risk_analysis])
     return llm_with_tools
 
+def _parse_text_tool_calls(content: str):
+    """Parse tool calls that the LLM wrote as plain text instead of structured tool_calls."""
+    import re
+    tool_names = ["get_client_clauses", "search_standard_templates", "get_risk_analysis"]
+    for name in tool_names:
+        pattern = rf'{name}\((.*?)\)'
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            args_str = match.group(1)
+            args = {}
+            for kv in re.findall(r'(\w+)\s*=\s*["\']([^"\']*)["\']', args_str):
+                args[kv[0]] = kv[1]
+            return {"name": name, "args": args}
+    return None
+
+
+def _execute_tool(tool_name: str, tool_args: dict, document_id: str) -> str:
+    """Execute a tool by name and return the result."""
+    if tool_name == "get_client_clauses":
+        tool_args["document_id"] = document_id
+        return str(get_client_clauses.invoke(tool_args))
+    elif tool_name == "search_standard_templates":
+        return str(search_standard_templates.invoke(tool_args))
+    elif tool_name == "get_risk_analysis":
+        tool_args["document_id"] = document_id
+        return str(get_risk_analysis.invoke(tool_args))
+    return f"Error: Tool {tool_name} not found."
+
+
 def chat_with_document(document_id: str, user_message: str, session_id: str = "default_session") -> str:
     """Main entry point for chatting with a document."""
     llm = get_agent_executor()
@@ -157,25 +186,31 @@ Do NOT guess what the contract says."""
     response = llm.invoke(session_memory[session_id])
     session_memory[session_id].append(response)
 
-    if response.tool_calls:
-        for tool_call in response.tool_calls:
+    tool_calls = response.tool_calls if response.tool_calls else []
+
+    # Fallback: if the LLM wrote tool calls as plain text instead of structured tool_calls
+    if not tool_calls and response.content:
+        parsed = _parse_text_tool_calls(response.content)
+        if parsed:
+            logger.info(f"Parsed text-based tool call: {parsed['name']}")
+            tool_result = _execute_tool(parsed["name"], parsed["args"], document_id)
+            # Replace the text tool call with actual results and ask LLM to summarize
+            session_memory[session_id].pop()  # remove the raw text response
+            session_memory[session_id].append(HumanMessage(
+                content=f"[Tool Result for {parsed['name']}]:\n{tool_result}\n\nNow answer the user's question based on this data. Be direct and factual."
+            ))
+            final_response = llm.invoke(session_memory[session_id])
+            session_memory[session_id].append(final_response)
+            return final_response.content
+
+    if tool_calls:
+        from langchain_core.messages import ToolMessage
+        for tool_call in tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
             logger.info(f"Agent invoked tool: {tool_name} with args {tool_args}")
-
-            if tool_name == "get_client_clauses":
-                tool_args["document_id"] = document_id
-                tool_result = get_client_clauses.invoke(tool_args)
-            elif tool_name == "search_standard_templates":
-                tool_result = search_standard_templates.invoke(tool_args)
-            elif tool_name == "get_risk_analysis":
-                tool_args["document_id"] = document_id
-                tool_result = get_risk_analysis.invoke(tool_args)
-            else:
-                tool_result = f"Error: Tool {tool_name} not found."
-
-            from langchain_core.messages import ToolMessage
-            session_memory[session_id].append(ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"]))
+            tool_result = _execute_tool(tool_name, tool_args, document_id)
+            session_memory[session_id].append(ToolMessage(content=tool_result, tool_call_id=tool_call["id"]))
 
         final_response = llm.invoke(session_memory[session_id])
         session_memory[session_id].append(final_response)

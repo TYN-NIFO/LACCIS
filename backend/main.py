@@ -105,7 +105,8 @@ if db_pool:
     def _getconn_with_schema(*args, **kwargs):
         conn = _original_getconn(*args, **kwargs)
         with conn.cursor() as cur:
-            cur.execute(f"SET search_path TO {DB_SCHEMA}, public")
+            # LACCIS must use its dedicated schema only. Do not fall back to public.
+            cur.execute(f'SET search_path TO "{DB_SCHEMA}"')
         conn.commit()
         return conn
     db_pool.getconn = _getconn_with_schema
@@ -3142,7 +3143,7 @@ def reprocess_document(document_id: str, background_tasks: BackgroundTasks, curr
             raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
 
     # Kick off background extraction (same as upload flow)
-    background_tasks.add_task(trigger_extraction, s3_key, document_type, source)
+    background_tasks.add_task(trigger_extraction, s3_key, document_id, document_type, source)
     return {"message": "Reprocessing started", "document_id": document_id}
 
 

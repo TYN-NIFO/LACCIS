@@ -1,6 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "http://3.111.213.97:8001/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/legal-analyzer/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/legal-analyzer/vite.svg", "destination": "/vite.svg" },
+    { "source": "/legal-analyzer/api/:path*", "destination": "http://3.111.213.97:8001/api/:path*" },
+    { "source": "/legal-analyzer/:path*", "destination": "/index.html" }
   ]
 }
