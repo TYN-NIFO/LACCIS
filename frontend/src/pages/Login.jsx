@@ -1,43 +1,6 @@
-import { useState } from 'react';
 import './Login.css';
 
-import { API_URL } from '../config';
-
-function Login({ onLogin }) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [alert, setAlert] = useState(null);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setAlert(null);
-
-        try {
-            const response = await fetch(`${API_URL}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setAlert({ type: 'success', message: 'Signed in successfully. Welcome back!' });
-                setTimeout(() => {
-                    onLogin(data.token, data.user);
-                }, 800);
-            } else {
-                setAlert({ type: 'error', message: data.detail || 'Invalid credentials' });
-            }
-        } catch (error) {
-            setAlert({ type: 'error', message: 'Connection error. Is the backend running?' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
+function Login() {
     return (
         <div className="login-container">
             <div className="login-box">
@@ -48,51 +11,16 @@ function Login({ onLogin }) {
                 </div>
 
                 <div className="login-card">
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label htmlFor="email">Email Address</label>
-                            <input
-                                type="email"
-                                id="email"
-                                className="input-field"
-                                placeholder="name@company.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor="password">Password</label>
-                            <input
-                                type="password"
-                                id="password"
-                                className="input-field"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
-                        </div>
-
-                        {alert && (
-                            <div className={`alert alert-${alert.type}`}>
-                                <span>{alert.type === 'success' ? '✓' : '⚠'}</span>
-                                <span>{alert.message}</span>
-                            </div>
-                        )}
-
-                        <button type="submit" className="btn-login" disabled={loading}>
-                            {loading ? (
-                                <>
-                                    <span className="spinner"></span>
-                                    <span>Verifying...</span>
-                                </>
-                            ) : (
-                                <span>Sign In</span>
-                            )}
-                        </button>
-                    </form>
+                    <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
+                        This tool uses the shared NIFO session only.
+                    </p>
+                    <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                        <span>!</span>
+                        <span>Please launch Legal Analyzer from NIFO so the shared JWT is available here.</span>
+                    </div>
+                    <button type="button" className="btn-login" onClick={() => { window.location.href = '/'; }}>
+                        <span>Open NIFO</span>
+                    </button>
                 </div>
             </div>
         </div>

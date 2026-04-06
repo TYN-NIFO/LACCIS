@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import './Navbar.css';
 
-function Navbar({ user, onLogout, title = "LACCIS Dashboard" }) {
+function Navbar({ user, title = "LACCIS Dashboard" }) {
     const getInitials = (name) => {
         return name ? name.substring(0, 2).toUpperCase() : 'U';
     };
@@ -20,9 +20,6 @@ function Navbar({ user, onLogout, title = "LACCIS Dashboard" }) {
             <div className="user-info">
                 <span>{user?.name || 'User'}</span>
                 <div className="user-avatar">{getInitials(user?.name)}</div>
-                <button className="btn btn-secondary" onClick={onLogout}>
-                    Logout
-                </button>
             </div>
         </nav>
     );

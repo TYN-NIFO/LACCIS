@@ -9,7 +9,6 @@ const Layout = ({ user, onLogout, children, pageTitle = 'Dashboard' }) => {
         <div className={`layout-container ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
             <Sidebar
                 user={user}
-                onLogout={onLogout}
                 isCollapsed={isCollapsed}
                 onToggle={() => setIsCollapsed(!isCollapsed)}
             />
