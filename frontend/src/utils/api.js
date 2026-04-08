@@ -8,7 +8,7 @@
  *   const data = await res.json();
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || '/legal-analyzer';
 
 /**
  * @param {string} path  - e.g. '/api/clients/list'
